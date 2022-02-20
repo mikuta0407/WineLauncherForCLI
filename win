@@ -1,0 +1,90 @@
+#!/opt/homebrew/bin/php
+<?php
+// ↑これはMac用
+
+// ヘルプ表示
+if (!isset($argv[1])){
+?>
+User manual
+
+Start mode:
+    win [aliasname]
+    
+    example:
+        To start Domino.exe:
+        "win domino"
+
+Show list:
+    win list
+
+Add mode: 
+    win add [aliasname] [exe file path] [Display name]
+
+    example:
+        To add Domino.exe:
+        "win add domino Domino.exe Domino"
+
+    You don't need to worry about the path of the exe file 
+    because the file path will be automatically converted 
+    when additional processing is done.
+<?php
+    die();
+}
+
+// yamlへのexe登録
+if ($argv[1] == "add"){ // 第1引数がaddの時はここ
+    $alias = $argv[2]; // 第2引数は起動時のエイリアス名。短縮用)
+    $path = realpath($argv[3]); // exeのパス。realpath通しているので相対でOK
+
+    //For macOS (ユーザ名取得)
+    $USER = str_replace(PHP_EOL, '',shell_exec("echo \$USER"));
+
+    // スペースや括弧をエスケープ
+    $path = str_replace(" ", "\ ", $path);
+    $path = str_replace("(", "\(", $path);
+    $path = str_replace(")", "\)", $path);
+    $path = str_replace("/Users/$USER", "~", $path); // チルダ表示の場合に置き換える (For macOS)
+
+    // 表示名(正規名的な)をもらう
+    $name = $argv[4];
+
+    // yamlファイルをパースする
+    $startmenu = yaml_parse_file(dirname(__FILE__)."/startmenu.yaml");
+
+    // エイリアス名、表示名、パスを追加
+    $startmenu[$alias]["name"] = $name;
+    $startmenu[$alias]["path"] = $path;
+
+    // 配列をyamlにして保存(挙動的には新規作成からの上書き保存)
+    yaml_emit_file(dirname(__FILE__)."/startmenu.yaml", $startmenu);
+
+    // 終了
+    exit();
+}
+
+// リスト表示(yamlを吐くだけ)
+if ($argv[1] == "list"){
+    echo file_get_contents(dirname(__FILE__)."/startmenu.yaml");
+    echo "\n";
+    exit();
+}
+
+// 以下起動用
+
+// yamlをパースして配列に
+$startmenu = yaml_parse_file(dirname(__FILE__)."/startmenu.yaml");
+
+// 1つめの引数をもらう
+$softname = $argv[1];
+
+// 配列内にその名前があるか検索、あったら処理続行
+if(array_key_exists($softname, $startmenu)){
+    $path = $startmenu[$softname]["path"]; // exeのパスを取り出す
+    $name = $startmenu[$softname]["name"]; // ソフトウェアの表示名を取り出す
+    
+    echo "Starting $name...\n"; // スタート中を表示
+    shell_exec("wine $path"); // wineで実行
+
+} else { // ない場合は怒って終わり
+    die("No info for $softname\n");
+}
